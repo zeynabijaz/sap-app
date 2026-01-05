@@ -1,0 +1,307 @@
+// frontend/src/pages/migoPage.js
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+function MigoPage({ user, onLogout }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const batchData = location.state?.batchData;
+
+  const [formData, setFormData] = useState({
+    salesOrder: '',
+    salesOrderItem: '',
+    movementType: '413',
+    storageLocationTo: '',
+    specialStock: 'E'
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [validationPassed, setValidationPassed] = useState(false);
+  const [transferResult, setTransferResult] = useState(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showPostSuccessPopup, setShowPostSuccessPopup] = useState(false);
+  const [postSuccessData, setPostSuccessData] = useState(null);
+
+  useEffect(() => {
+    if (!batchData) {
+      navigate('/bsp');
+    }
+  }, [batchData, navigate]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  };
+
+  const preparePayload = () => {
+    const nowIso = new Date().toISOString();
+
+    if (Array.isArray(batchData)) {
+      const first = batchData[0] || {};
+      return {
+        ...formData,
+        ...first,
+        docDate: nowIso,
+        postingDate: nowIso,
+        items: batchData
+      };
+    }
+
+    return {
+      ...formData,
+      ...batchData,
+      docDate: nowIso,
+      postingDate: nowIso,
+      Charg: batchData.Charg,
+      Werks: batchData.Werks,
+      MATNR: batchData.MATNR,
+      LGORT: batchData.LGORT,
+      MEINS: batchData.MEINS,
+      SOBKZ: batchData.SOBKZ,
+      QTY: batchData.QTY
+    };
+  };
+
+  const handleCheck = async () => {
+    await handleTransfer(true);
+  };
+
+  const handlePost = async () => {
+    await handleTransfer(false);
+  };
+
+  const handleFetchAgain = () => {
+    navigate('/bsp', { replace: true, state: null });
+  };
+
+  const handleTransfer = async (isTestRun) => {
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const payload = preparePayload();
+      const endpoint = isTestRun ? 'http://192.168.60.97:5000/api/migo/check' : 'http://192.168.60.97:5000/api/migo/post';
+
+      const response = await axios.post(endpoint, payload, {
+        headers: getAuthHeader()
+      });
+
+      if (response.data.success) {
+        setTransferResult(response.data.data);
+        if (isTestRun) {
+          setValidationPassed(true);
+          setSuccessMessage('Validation successful!');
+          setShowSuccessPopup(true);
+        } else {
+          setShowSuccessPopup(false);
+          setPostSuccessData(response.data?.data || null);
+          setShowPostSuccessPopup(true);
+        }
+      } else {
+        throw new Error(response.data.error || 'Operation failed');
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || error.message);
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    navigate('/bsp', {
+      state: {
+        prefillBatches: batchData
+      }
+    });
+  };
+
+  if (!batchData) {
+    return <div>Loading batch data...</div>;
+  }
+
+  return (
+    <div className="app-container">
+      <header className="app-header">
+        <div className="user-info">
+          <div className="user-details">
+            <span className="username">{user?.username || "s.ashraf"}</span>
+            <span className="server-info">
+              Server {user?.server || "DEV"} • Client {user?.client || "110"}
+            </span>
+          </div>
+          <button className="logout-btn" onClick={onLogout}>Logout</button>
+        </div>
+      </header>
+
+      <div style={{ maxWidth: "600px", margin: "20px auto", padding: "1rem" }}>
+        <div style={{ background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}>
+          <h2 style={{ marginTop: 0 }}>MIGO Transfer</h2>
+
+          {error && <div style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.75rem", borderRadius: "8px", marginTop: "0.5rem" }}>{error}</div>}
+          {successMessage && <div style={{ background: "#dcfce7", color: "#166534", padding: "0.75rem", borderRadius: "8px", marginTop: "0.5rem" }}>{successMessage}</div>}
+
+          <div className="form-group">
+            <label>Sales Order</label>
+
+            <input
+              type="text"
+              name="salesOrder"
+              value={formData.salesOrder}
+              onChange={handleChange}
+              className="form-control"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Sales Order Item</label>
+
+            <input
+              type="text"
+              name="salesOrderItem"
+              value={formData.salesOrderItem}
+              onChange={handleChange}
+              className="form-control"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Movement Type</label>
+
+            <input
+              type="text"
+              name="movementType"
+              value={formData.movementType}
+              onChange={handleChange}
+              className="form-control"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Storage Location To</label>
+
+            <input
+              type="text"
+              name="storageLocationTo"
+              value={formData.storageLocationTo}
+              onChange={handleChange}
+              className="form-control"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Special Stock</label>
+
+            <input
+              type="text"
+              name="specialStock"
+              value={formData.specialStock}
+              onChange={handleChange}
+              className="form-control"
+              required
+            />
+          </div>
+        </div>
+      </div>
+
+      {showSuccessPopup && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 50 }}>
+          <div style={{ width: "100%", maxWidth: "520px", background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            <h3 style={{ marginTop: 0 }}>Validation Successful</h3>
+            <div style={{ background: "#dcfce7", color: "#166534", padding: "0.75rem", borderRadius: "8px", marginTop: "0.5rem" }}>
+              Your data has been validated successfully. You can now post.
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.25rem" }}>
+              <button
+                onClick={() => {
+                  setShowSuccessPopup(false);
+                }}
+                style={{ padding: "0.85rem 2rem", background: "#6b7280", color: "#fff", border: "none", borderRadius: "8px" }}
+              >
+                Back
+              </button>
+
+              <button
+                onClick={handlePost}
+                disabled={!validationPassed || loading}
+                style={{ padding: "0.85rem 2rem", background: validationPassed && !loading ? "#22c55e" : "#9ca3af", color: "#fff", border: "none", borderRadius: "8px" }}
+              >
+                {loading ? 'Posting...' : 'Post'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPostSuccessPopup && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 60 }}>
+          <div style={{ width: "100%", maxWidth: "520px", background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            <h3 style={{ marginTop: 0 }}>Posted Successfully</h3>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: "10px", padding: "0.9rem", background: "#f9fafb" }}>
+              <div style={{ fontWeight: 600, color: "#111827" }}>Document Number</div>
+              <div style={{ marginTop: "0.25rem", fontSize: "1.1rem", color: "#111827" }}>
+                {postSuccessData?.materialDocument || postSuccessData?.MatDoc || '-'}
+              </div>
+              {(postSuccessData?.message || postSuccessData?.Message) && (
+                <div style={{ marginTop: "0.75rem", color: "#374151" }}>{postSuccessData?.message || postSuccessData?.Message}</div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.25rem" }}>
+              <button
+                onClick={handleFetchAgain}
+                style={{ padding: "0.85rem 2rem", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "8px" }}
+              >
+                Fetch Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ position: "fixed", bottom: "20px", left: "20px" }}>
+        <button
+          onClick={handleBack}
+          disabled={loading}
+          style={{ padding: "0.85rem 2rem", background: "#6b7280", color: "#fff", border: "none", borderRadius: "8px" }}
+        >
+          Back
+        </button>
+      </div>
+
+      <div style={{ position: "fixed", bottom: "20px", right: "20px" }}>
+        <button
+          onClick={handleCheck}
+          disabled={loading}
+          style={{ padding: "0.85rem 2rem", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "8px" }}
+        >
+          {loading ? 'Validating...' : 'Check'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default MigoPage;
