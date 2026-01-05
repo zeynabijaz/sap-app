@@ -18,7 +18,8 @@ app.use(cors({
     'http://192.168.60.96:3001',      // Old mobile app port
     'http://192.168.60.95:5000',      // Old mobile app config
     'capacitor://localhost',          // Capacitor local
-    'http://localhost'                // Any localhost
+    'http://localhost',               // Any localhost
+    '*'                             // Allow all origins for development
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],

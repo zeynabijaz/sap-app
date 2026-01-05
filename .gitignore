@@ -26,3 +26,6 @@ ios/Pods
 
 # Archives
 *.zip
+
+# Local Netlify folder
+.netlify
