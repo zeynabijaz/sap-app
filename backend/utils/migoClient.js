@@ -12,37 +12,42 @@ class MigoClient {
   constructor() {
     this.csrfToken = null;
     this.cookies = null;
-    this.baseUrl = 'https://10.200.11.37:44300/sap/opu/odata/sap/ZMIGO_TRANSFER_SRV';
-
-    const username = process.env.SAP_USERNAME || process.env.SAP_USER;
-    const password = process.env.SAP_PASSWORD || process.env.SAP_PASS;
+    
+    // Use same approach as BSP - direct axios calls
+    this.baseUrl = process.env.SAP_BASE_URL;
+    this.servicePath = process.env.SAP_SERVICE_PATH;
+    
+    const username = process.env.SAP_USER;
+    const password = process.env.SAP_PASS;
 
     if (!username || !password) {
-      throw new Error('Missing SAP credentials: set SAP_USERNAME/SAP_PASSWORD or SAP_USER/SAP_PASS in backend/.env');
+      throw new Error('Missing SAP credentials: set SAP_USER/SAP_PASS in backend/.env');
     }
 
-    this.client = axios.create({
-      baseURL: this.baseUrl,
-      httpsAgent,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'X',
-      },
-      withCredentials: true,
-      auth: { username, password }
+    this.auth = {
+      username: username,
+      password: password
+    };
+    
+    this.httpsAgent = new https.Agent({
+      rejectUnauthorized: false, // Only for development
+      keepAlive: true
     });
   }
 
   async getCsrfToken() {
     try {
-      // Fetch CSRF from the same entity as POST
-      const response = await this.client.get('/TransferHeaderSet', {
+      // Fetch CSRF from same entity as POST - using same approach as BSP
+      const response = await axios.get(`${this.baseUrl}${this.servicePath}/TransferHeaderSet`, {
+        httpsAgent: this.httpsAgent,
+        auth: this.auth,
         params: { 'sap-client': '110' },
         headers: {
           'X-CSRF-Token': 'Fetch',
-          'Accept': 'application/json'
-        }
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        validateStatus: () => true // handle status manually
       });
 
       const token = response.headers['x-csrf-token'];
@@ -55,6 +60,7 @@ class MigoClient {
       this.csrfToken = token;
       this.cookies = Array.isArray(setCookie) ? setCookie.map(c => c.split(';')[0]).join('; ') : setCookie;
 
+      console.log('CSRF token fetched successfully:', token);
       return { success: true, csrfToken: token };
     } catch (error) {
       console.error('CSRF Token Error:', {
@@ -76,19 +82,24 @@ class MigoClient {
       }
 
       const payload = this.formatPayload(transferData, isTestRun);
-      console.log('Sending to SAP:', JSON.stringify(payload, null, 2));
+      console.log('Sending to SAP OData:', JSON.stringify(payload, null, 2));
 
-      const response = await this.client.post('/TransferHeaderSet', payload, {
+      const response = await axios.post(`${this.baseUrl}${this.servicePath}/TransferHeaderSet`, payload, {
+        httpsAgent: this.httpsAgent,
+        auth: this.auth,
         params: { 'sap-client': '110' },
         headers: {
           'X-CSRF-Token': this.csrfToken,
           'Cookie': this.cookies,
-          'Accept': 'application/xml'
+          'Accept': 'application/xml',
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
-        responseType: 'text'
+        responseType: 'text',
+        validateStatus: () => true // handle status manually
       });
 
-      console.log('Raw SAP Response:', response.data);
+      console.log('Raw SAP OData Response:', response.data);
       return await this.parseSapResponse(response.data);
 
     } catch (error) {
@@ -97,6 +108,12 @@ class MigoClient {
         this.csrfToken = null;
         this.cookies = null;
       }
+
+      console.error('MIGO OData Error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
 
       // Try to parse SAP error XML
       if (error.response?.data) {
@@ -117,21 +134,42 @@ class MigoClient {
   }
 
   async parseSapResponse(xmlText) {
-    const result = await parseStringPromise(xmlText, {
-      explicitArray: false,
-      mergeAttrs: true
-    });
+    try {
+      const result = await parseStringPromise(xmlText, {
+        explicitArray: false,
+        mergeAttrs: true
+      });
 
-    const properties = result?.entry?.content?.['m:properties'] || result?.content?.['m:properties'] || result?.['m:properties'];
-    if (!properties) throw new Error('Invalid response format from SAP');
+      console.log('Parsed XML Response:', JSON.stringify(result, null, 2));
 
-    const rawSuccess = properties['d:Success'] ?? properties['d:EvSuccess'];
-    const success = rawSuccess === 'true' || rawSuccess === true;
-    const message = properties['d:Message'] || properties['d:EvMessage'] || (success ? 'Operation completed successfully' : 'Operation failed');
-    const matDoc = properties['d:MatDoc'] || properties['d:EvMatDoc'];
-    const matDocYear = properties['d:MatDocYear'] || properties['d:EvMatDocYear'];
+      // Check for error response first
+      if (result.error) {
+        const errorMessage = result.error.message || result.error['message'] || 'Unknown SAP error';
+        return { success: false, error: errorMessage };
+      }
 
-    return { success, message, data: { materialDocument: matDoc, documentYear: matDocYear } };
+      // Check for success response
+      const properties = result?.entry?.content?.['m:properties'] || result?.content?.['m:properties'] || result?.['m:properties'];
+      if (!properties) {
+        // If no properties, check if it's a success response without data
+        return { 
+          success: true, 
+          message: 'Operation completed successfully', 
+          data: { materialDocument: null, documentYear: null } 
+        };
+      }
+
+      const rawSuccess = properties['d:Success'] ?? properties['d:EvSuccess'];
+      const success = rawSuccess === 'true' || rawSuccess === true;
+      const message = properties['d:Message'] || properties['d:EvMessage'] || (success ? 'Operation completed successfully' : 'Operation failed');
+      const matDoc = properties['d:MatDoc'] || properties['d:EvMatDoc'];
+      const matDocYear = properties['d:MatDocYear'] || properties['d:EvMatDocYear'];
+
+      return { success, message, data: { materialDocument: matDoc, documentYear: matDocYear } };
+    } catch (error) {
+      console.error('XML Parsing Error:', error.message);
+      return { success: false, error: 'Failed to parse SAP response' };
+    }
   }
 
   formatPayload(transferData, isTestRun) {

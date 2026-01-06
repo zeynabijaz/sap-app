@@ -9,6 +9,7 @@ const router = express.Router();
 const SAP_USER = process.env.SAP_USER;
 const SAP_PASS = process.env.SAP_PASS;
 const SAP_BASE_URL = process.env.SAP_BASE_URL; // e.g., https://10.200.11.37:44300
+const BSP_SERVICE_PATH = process.env.BSP_SERVICE_PATH; // e.g., /sap/opu/odata/sap/ZUM_BSP_BATCH_INFORMATION_SRV
 
 // Ignore SSL certificate errors (for dev/self-signed SSL)
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
@@ -19,7 +20,7 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
   if (!batchNumber) return res.status(400).json({ error: "Batch number is required" });
 
   try {
-    const url = `${SAP_BASE_URL}/sap/opu/odata/sap/ZUM_BSP_BATCH_INFORMATION_SRV/BatchInfoSet(Charg='${batchNumber}')?$format=json&sap-client=110`;
+    const url = `${SAP_BASE_URL}${BSP_SERVICE_PATH}/BatchInfoSet(Charg='${batchNumber}')?$format=json&sap-client=110`;
 ;
 
     const response = await axios.get(url, {

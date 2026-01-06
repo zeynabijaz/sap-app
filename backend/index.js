@@ -11,19 +11,10 @@ const PORT = process.env.PORT || 5000;
 
 // CORS middleware - only once at the top
 app.use(cors({
-  origin: [
-    'http://localhost:3000',           // Web development
-    'http://192.168.60.97:3000',      // Your mobile app
-    'http://192.168.60.96:3000',      // Old mobile app IP
-    'http://192.168.60.96:3001',      // Old mobile app port
-    'http://192.168.60.95:5000',      // Old mobile app config
-    'capacitor://localhost',          // Capacitor local
-    'http://localhost',               // Any localhost
-    '*'                             // Allow all origins for development
-  ],
+  origin: '*',  // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
-  credentials: true
+  credentials: false  // Set to false when using wildcard origin
 }));
 
 // Middleware
