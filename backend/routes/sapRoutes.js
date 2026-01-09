@@ -19,9 +19,13 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
   const { batchNumber } = req.params;
   if (!batchNumber) return res.status(400).json({ error: "Batch number is required" });
 
+  console.log(`Fetching batch info for: ${batchNumber}`);
+  console.log(`SAP_BASE_URL: ${SAP_BASE_URL}`);
+  console.log(`BSP_SERVICE_PATH: ${BSP_SERVICE_PATH}`);
+
   try {
     const url = `${SAP_BASE_URL}${BSP_SERVICE_PATH}/BatchInfoSet?$filter=Charg eq '${batchNumber}'&$format=json&sap-client=110`;
-;
+    console.log(`Full URL: ${url}`);
 
     const response = await axios.get(url, {
       httpsAgent,
@@ -33,7 +37,8 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest"
       },
-      validateStatus: () => true // handle status manually
+      validateStatus: () => true, // handle status manually
+      timeout: 30000 // 30 second timeout
     });
 
     if (response.status === 401) {
@@ -58,6 +63,18 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
 
   } catch (err) {
     console.error("SAP batch fetch error:", err.message);
+    console.error("Error details:", {
+      message: err.message,
+      code: err.code,
+      status: err.response?.status,
+      statusText: err.response?.statusText,
+      isTimeout: err.code === 'ECONNABORTED'
+    });
+    
+    if (err.code === 'ECONNABORTED') {
+      return res.status(408).json({ error: "Request timeout - SAP server is not responding", details: err.message });
+    }
+    
     res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });

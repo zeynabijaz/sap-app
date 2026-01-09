@@ -67,12 +67,12 @@ function BspPage({ user, onLogout }) {
 
     setLoading(true);
     try {
-      const res = await fetch(`https://sap-app-maoe.onrender.com/api/BatchInfo/${input}`);
+      const res = await fetch(`http://192.168.60.97:5000/api/BatchInfo/${input}`);
       if (!res.ok) throw new Error("Failed to fetch batch information.");
       const json = await res.json();
-      const d = json?.d;
+      const d = json?.d || json; // Handle both old and new response formats
       if (!d?.Charg || Number(d.QTY) <= 0) throw new Error("Failed to fetch batch information");
-      setBatches(prev => [...prev, json]);
+      setBatches(prev => [...prev, { d: d }]); // Ensure consistent structure
       setBatchNumber("");
     } catch (err) {
       setError(err.message);

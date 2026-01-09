@@ -11,6 +11,8 @@ function MigoPage({ user, onLogout }) {
   const [formData, setFormData] = useState({
     salesOrder: '',
     salesOrderItem: '',
+    salesOrderTo: '',
+    salesOrderItemTo: '',
     movementType: '413',
     storageLocationTo: '',
     specialStock: 'E'
@@ -35,16 +37,18 @@ function MigoPage({ user, onLogout }) {
     // Auto-populate sales order and item from batch data
     if (Array.isArray(batchData) && batchData.length > 0) {
       const firstBatch = batchData[0];
+      const batchContent = firstBatch.d || firstBatch; // Handle both structures
       setFormData(prev => ({
         ...prev,
-        salesOrder: firstBatch.SalesOrder || '',
-        salesOrderItem: firstBatch.SoItem || ''
+        salesOrder: batchContent.SalesOrder || '',
+        salesOrderItem: batchContent.SoItem || ''
       }));
-    } else if (batchData?.SalesOrder || batchData?.SoItem) {
+    } else if (batchData?.SalesOrder || batchData?.SoItem || batchData?.d?.SalesOrder || batchData?.d?.SoItem) {
+      const batchContent = batchData.d || batchData;
       setFormData(prev => ({
         ...prev,
-        salesOrder: batchData.SalesOrder || '',
-        salesOrderItem: batchData.SoItem || ''
+        salesOrder: batchContent.SalesOrder || '',
+        salesOrderItem: batchContent.SoItem || ''
       }));
     }
   }, [batchData, navigate]);
@@ -68,29 +72,39 @@ function MigoPage({ user, onLogout }) {
   const preparePayload = () => {
     const nowIso = new Date().toISOString();
 
+    // Use "to" fields if entered, otherwise use "from" fields
+    const finalSalesOrderTo = formData.salesOrderTo || formData.salesOrder;
+    const finalSalesOrderItemTo = formData.salesOrderItemTo || formData.salesOrderItem;
+
     if (Array.isArray(batchData)) {
       const first = batchData[0] || {};
+      const firstContent = first.d || first;
       return {
         ...formData,
-        ...first,
+        ...firstContent,
+        salesOrderTo: finalSalesOrderTo,
+        salesOrderItemTo: finalSalesOrderItemTo,
         docDate: nowIso,
         postingDate: nowIso,
         items: batchData
       };
     }
 
+    const batchContent = batchData.d || batchData;
     return {
       ...formData,
-      ...batchData,
+      ...batchContent,
+      salesOrderTo: finalSalesOrderTo,
+      salesOrderItemTo: finalSalesOrderItemTo,
       docDate: nowIso,
       postingDate: nowIso,
-      Charg: batchData.Charg,
-      Werks: batchData.Werks,
-      MATNR: batchData.MATNR,
-      LGORT: batchData.LGORT,
-      MEINS: batchData.MEINS,
-      SOBKZ: batchData.SOBKZ,
-      QTY: batchData.QTY
+      Charg: batchContent.Charg,
+      Werks: batchContent.Werks,
+      MATNR: batchContent.MATNR,
+      LGORT: batchContent.LGORT,
+      MEINS: batchContent.MEINS,
+      SOBKZ: batchContent.SOBKZ,
+      QTY: batchContent.QTY
     };
   };
 
@@ -113,7 +127,7 @@ function MigoPage({ user, onLogout }) {
 
     try {
       const payload = preparePayload();
-      const endpoint = isTestRun ? 'https://sap-app-maoe.onrender.com/api/migo/check' : 'https://sap-app-maoe.onrender.com/api/migo/post';
+      const endpoint = isTestRun ? 'http://192.168.60.97:5000/api/migo/check' : 'http://192.168.60.97:5000/api/migo/post';
 
       const response = await axios.post(endpoint, payload, {
         headers: getAuthHeader()
@@ -287,6 +301,30 @@ function MigoPage({ user, onLogout }) {
               <option value="413">413</option>
               <option value="311">311</option>
             </select>
+          </div>
+
+          <div className="form-group">
+            <label>Sales Order To</label>
+            <input
+              type="text"
+              name="salesOrderTo"
+              value={formData.salesOrderTo}
+              onChange={handleChange}
+              className="form-control"
+              placeholder="Same as Sales Order From if empty"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Sales Order Item To</label>
+            <input
+              type="text"
+              name="salesOrderItemTo"
+              value={formData.salesOrderItemTo}
+              onChange={handleChange}
+              className="form-control"
+              placeholder="Same as Sales Order Item From if empty"
+            />
           </div>
 
           <div className="form-group">
