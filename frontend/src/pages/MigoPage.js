@@ -24,10 +24,28 @@ function MigoPage({ user, onLogout }) {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showPostSuccessPopup, setShowPostSuccessPopup] = useState(false);
   const [postSuccessData, setPostSuccessData] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (!batchData) {
       navigate('/bsp');
+      return;
+    }
+
+    // Auto-populate sales order and item from batch data
+    if (Array.isArray(batchData) && batchData.length > 0) {
+      const firstBatch = batchData[0];
+      setFormData(prev => ({
+        ...prev,
+        salesOrder: firstBatch.SalesOrder || '',
+        salesOrderItem: firstBatch.SoItem || ''
+      }));
+    } else if (batchData?.SalesOrder || batchData?.SoItem) {
+      setFormData(prev => ({
+        ...prev,
+        salesOrder: batchData.SalesOrder || '',
+        salesOrderItem: batchData.SoItem || ''
+      }));
     }
   }, [batchData, navigate]);
 
@@ -133,6 +151,19 @@ function MigoPage({ user, onLogout }) {
     });
   };
 
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    onLogout();
+    setShowLogoutConfirm(false);
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
+
   if (!batchData) {
     return <div>Loading batch data...</div>;
   }
@@ -147,9 +178,67 @@ function MigoPage({ user, onLogout }) {
               Server {user?.server || "DEV"} • Client {user?.client || "110"}
             </span>
           </div>
-          <button className="logout-btn" onClick={onLogout}>Logout</button>
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
         </div>
       </header>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#333' }}>Confirm Logout</h3>
+            <p style={{ margin: '0 0 1.5rem 0', color: '#666' }}>
+              Are you sure you want to logout?
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={cancelLogout}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white',
+                  color: '#666',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: 'none',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: "600px", margin: "20px auto", padding: "1rem" }}>
         <div style={{ background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}>
@@ -160,7 +249,6 @@ function MigoPage({ user, onLogout }) {
 
           <div className="form-group">
             <label>Sales Order</label>
-
             <input
               type="text"
               name="salesOrder"
@@ -168,12 +256,13 @@ function MigoPage({ user, onLogout }) {
               onChange={handleChange}
               className="form-control"
               required
+              readOnly
+              style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
             />
           </div>
 
           <div className="form-group">
             <label>Sales Order Item</label>
-
             <input
               type="text"
               name="salesOrderItem"
@@ -181,25 +270,27 @@ function MigoPage({ user, onLogout }) {
               onChange={handleChange}
               className="form-control"
               required
+              readOnly
+              style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
             />
           </div>
 
           <div className="form-group">
             <label>Movement Type</label>
-
-            <input
-              type="text"
+            <select
               name="movementType"
               value={formData.movementType}
               onChange={handleChange}
               className="form-control"
               required
-            />
+            >
+              <option value="413">413</option>
+              <option value="311">311</option>
+            </select>
           </div>
 
           <div className="form-group">
             <label>Storage Location To</label>
-
             <input
               type="text"
               name="storageLocationTo"
@@ -212,7 +303,6 @@ function MigoPage({ user, onLogout }) {
 
           <div className="form-group">
             <label>Special Stock</label>
-
             <input
               type="text"
               name="specialStock"

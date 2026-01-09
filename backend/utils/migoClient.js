@@ -75,10 +75,10 @@ class MigoClient {
 
   async executeTransfer(transferData, isTestRun = false) {
     try {
-      // Ensure CSRF token is available
-      if (!this.csrfToken) {
-        const tokenResult = await this.getCsrfToken();
-        if (!tokenResult.success) throw new Error('Failed to get CSRF token');
+      // Always fetch fresh CSRF token for each request
+      const tokenResult = await this.getCsrfToken();
+      if (!tokenResult.success) {
+        throw new Error('Failed to get CSRF token');
       }
 
       const payload = this.formatPayload(transferData, isTestRun);
@@ -96,10 +96,28 @@ class MigoClient {
           'X-Requested-With': 'XMLHttpRequest'
         },
         responseType: 'text',
-        validateStatus: () => true // handle status manually
+        validateStatus: (status) => {
+          // Accept 2xx, 4xx, and 5xx responses - we'll handle them manually
+          return status < 600;
+        }
       });
 
       console.log('Raw SAP OData Response:', response.data);
+      console.log('Response Status:', response.status);
+      console.log('Response Headers:', response.headers);
+
+      // Check if response is HTML (error page) instead of XML
+      if (response.data && typeof response.data === 'string') {
+        if (response.data.trim().startsWith('<!DOCTYPE') || response.data.trim().startsWith('<html')) {
+          return { success: false, error: 'SAP returned HTML error page - possible authentication or configuration issue' };
+        }
+        
+        // Check if response starts with plain text error (like "CSRF token validation failed")
+        if (!response.data.trim().startsWith('<?xml')) {
+          return { success: false, error: response.data.trim() };
+        }
+      }
+
       return await this.parseSapResponse(response.data);
 
     } catch (error) {
@@ -144,7 +162,11 @@ class MigoClient {
 
       // Check for error response first
       if (result.error) {
-        const errorMessage = result.error.message || result.error['message'] || 'Unknown SAP error';
+        // Handle nested error message format
+        const errorMessage = result.error.message?._ || 
+                           result.error.message || 
+                           result.error['message'] || 
+                           'Unknown SAP error';
         return { success: false, error: errorMessage };
       }
 
@@ -178,9 +200,13 @@ class MigoClient {
 
     const salesOrder = transferData.salesOrder || '';
     const soItem = String(transferData.salesOrderItem || '').padStart(6, '0');
-    const moveType = transferData.movementType || '413';
+    const moveType = transferData.movementType; // Remove hardcoded fallback
     const specStock = transferData.specialStock || transferData.SOBKZ || 'E';
     const stgeLocTo = transferData.storageLocationTo || '';
+
+    // Handle SalesOrderTo and SoItemTo - default to from values if not provided
+    const salesOrderTo = transferData.salesOrderTo || salesOrder;
+    const soItemTo = String(transferData.salesOrderItemTo || transferData.salesOrderItem || '').padStart(6, '0');
 
     const normalizeMaterial = mat => String(mat || '').padStart(18, '0');
     const normalizeItemNo = i => String(i + 1).padStart(6, '0');
@@ -189,41 +215,33 @@ class MigoClient {
       ? transferData.TransferItemSet
       : Array.isArray(transferData.items) && transferData.items.length > 0
         ? transferData.items
-        : [{}];
+        : [transferData]; // Single item fallback
 
-    const transferItems = itemsSource.map((item, i) => {
-      const materialRaw = item.Material ?? item.MATNR ?? transferData.MATNR;
-      const plant = item.Plant ?? item.Werks ?? transferData.Werks;
-      const stgeLoc = item.StgeLoc ?? item.LGORT ?? transferData.LGORT;
-      const quantity = item.Quantity ?? item.QTY ?? transferData.QTY;
-      const entryUom = item.EntryUom ?? item.MEINS ?? transferData.MEINS;
-      const batch = item.Batch ?? item.Charg ?? transferData.Charg;
-      const batchTo = item.BatchTo ?? item.Charg ?? transferData.Charg;
-
-      return {
-        HeaderId: "1",
-        ItemNo: item.ItemNo || normalizeItemNo(i),
-        Material: normalizeMaterial(materialRaw),
-        Plant: plant || '',
-        StgeLoc: stgeLoc || '',
-        Quantity: quantity || '0.000',
-        EntryUom: entryUom || 'TO',
-        Batch: batch || '',
-        SalesOrder: item.SalesOrder || salesOrder,
-        SoItem: String(item.SoItem || soItem).padStart(6, '0'),
-        SpecStock: item.SpecStock || specStock,
-        StgeLocTo: item.StgeLocTo || stgeLocTo,
-        BatchTo: batchTo || '',
-        MoveType: item.MoveType || moveType
-      };
-    });
+    const TransferItemSet = itemsSource.map((item, index) => ({
+      HeaderId: "1",
+      ItemNo: normalizeItemNo(index),
+      Material: normalizeMaterial(item.MATNR || item.Material),
+      Plant: item.Werks || item.Plant || '',
+      StgeLoc: item.LGORT || item.StgeLoc || '',
+      Quantity: String(item.QTY || item.Quantity || '0'),
+      EntryUom: item.MEINS || item.EntryUom || '',
+      Batch: item.Charg || item.Batch || '',
+      SalesOrder: salesOrder,
+      SoItem: soItem,
+      SpecStock: specStock,
+      StgeLocTo: stgeLocTo,
+      BatchTo: item.Charg || item.Batch || '',
+      MoveType: moveType,
+      SalesOrderTo: salesOrderTo,
+      SoItemTo: soItemTo
+    }));
 
     return {
       HeaderId: "1",
       DocDate: `/Date(${docDateMs})/`,
       PstngDate: `/Date(${postingDateMs})/`,
       TestRun: isTestRun,
-      TransferItemSet: transferItems
+      TransferItemSet
     };
   }
 }
