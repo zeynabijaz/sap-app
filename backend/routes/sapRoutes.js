@@ -20,7 +20,7 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
   if (!batchNumber) return res.status(400).json({ error: "Batch number is required" });
 
   try {
-    const url = `${SAP_BASE_URL}${BSP_SERVICE_PATH}/BatchInfoSet(Charg='${batchNumber}')?$format=json&sap-client=110`;
+    const url = `${SAP_BASE_URL}${BSP_SERVICE_PATH}/BatchInfoSet?$filter=Charg eq '${batchNumber}'&$format=json&sap-client=110`;
 ;
 
     const response = await axios.get(url, {
@@ -47,7 +47,14 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
       });
     }
 
-    res.json(response.data);
+    // Handle OData filter response - check if we have results
+    const batchData = response.data?.d?.results;
+    if (!batchData || batchData.length === 0) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+
+    // Return the first batch from the filtered results
+    res.json(batchData[0]);
 
   } catch (err) {
     console.error("SAP batch fetch error:", err.message);
