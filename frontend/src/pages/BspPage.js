@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { requestWithFallback } from "../utils/apiHelper";
+import { PRIMARY_BACKEND_URL } from "../config/backend";
 
 function BspPage({ user, onLogout }) {
   const navigate = useNavigate();
@@ -68,38 +68,51 @@ function BspPage({ user, onLogout }) {
 
     setLoading(true);
     try {
-      const json = await requestWithFallback(async (endpoints) => {
-        // Create timeout controller
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-        
-        try {
-          const res = await fetch(`${endpoints.batchInfo}/${input}`, {
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            const error = new Error(errorData.error || `Failed to fetch batch information (${res.status})`);
-            error.status = res.status;
-            error.response = { status: res.status, data: errorData };
-            throw error;
-          }
-          
-          return await res.json();
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          if (fetchError.name === 'AbortError') {
-            const timeoutError = new Error('Request timeout');
-            timeoutError.status = 408;
-            timeoutError.response = { status: 408 };
-            throw timeoutError;
-          }
-          throw fetchError;
+      // Create timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      let json;
+      try {
+        // Use relative URL (no backend server URL in the page)
+        const url = `${PRIMARY_BACKEND_URL}/api/BatchInfo/${input}`;
+        const res = await fetch(url, {
+          signal: controller.signal
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => '');
+          const errorData = (() => {
+            try {
+              return errorText ? JSON.parse(errorText) : {};
+            } catch {
+              return {};
+            }
+          })();
+          const error = new Error(errorData.error || `Failed to fetch batch information (${res.status})`);
+          error.status = res.status;
+          error.response = { status: res.status, data: errorData };
+          throw error;
         }
-      });
+
+        const bodyText = await res.text();
+        try {
+          json = bodyText ? JSON.parse(bodyText) : {};
+        } catch {
+          const preview = bodyText?.slice(0, 140) || '';
+          throw new Error(`Server did not return JSON. Response starts with: ${preview}`);
+        }
+      } catch (fetchError) {
+        if (fetchError.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout');
+          timeoutError.status = 408;
+          timeoutError.response = { status: 408 };
+          throw timeoutError;
+        }
+        throw fetchError;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       const d = json?.d || json; // Handle both old and new response formats
       if (!d?.Charg || Number(d.QTY) <= 0) throw new Error("Failed to fetch batch information");

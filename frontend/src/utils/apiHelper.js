@@ -1,7 +1,7 @@
 // API helper with automatic fallback mechanism
 // Tries primary backend (Render) first, falls back to local if it fails
 
-import { PRIMARY_ENDPOINTS, FALLBACK_ENDPOINTS } from '../config/backend';
+import { PRIMARY_BACKEND_URL, PRIMARY_ENDPOINTS, FALLBACK_ENDPOINTS } from '../config/backend';
 
 /**
  * Check if an error should trigger fallback to local backend
@@ -59,4 +59,23 @@ export const requestWithFallback = async (requestFn, endpointType = 'primary') =
       throw error;
     }
   }
+};
+
+// Helper to detect if running on mobile
+export const isMobileDevice = () => {
+  return typeof window !== 'undefined' && window.Capacitor;
+};
+
+export const buildApiUrl = (path) => {
+  if (!path) return path;
+
+  const baseUrl = PRIMARY_BACKEND_URL;
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (isMobileDevice()) {
+    return `${normalizedBase}${normalizedPath}`;
+  }
+
+  return `${normalizedBase}${normalizedPath}`;
 };

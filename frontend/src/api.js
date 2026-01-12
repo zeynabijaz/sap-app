@@ -1,9 +1,10 @@
 import axios from "axios";
 import { requestWithFallback } from "./utils/apiHelper";
+import { LOGIN_BACKEND_URL } from "./config/backend";
 
 export const loginUser = async (username, password, environment) => {
   return requestWithFallback(async (endpoints) => {
-    const response = await axios.post(`${endpoints.auth}/Login`, {
+    const response = await axios.post(`${LOGIN_BACKEND_URL}/api/auth/Login`, {
       username,
       password,
       environment
@@ -12,7 +13,7 @@ export const loginUser = async (username, password, environment) => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      timeout: 30000, // 30 second timeout
+      timeout: typeof window !== 'undefined' && window.Capacitor ? 60000 : 30000, // 60s for mobile, 30s for web
     });
 
     const result = response.data?.["ns0:Z_WM_HANDHELD_LOGINResponse"];

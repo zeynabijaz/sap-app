@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { requestWithFallback } from '../utils/apiHelper';
+import { PRIMARY_BACKEND_URL } from '../config/backend';
 
 function MigoPage({ user, onLogout }) {
   const location = useLocation();
   const navigate = useNavigate();
+
   const batchData = location.state?.batchData;
 
   const [formData, setFormData] = useState({
@@ -131,12 +132,12 @@ function MigoPage({ user, onLogout }) {
     try {
       const payload = preparePayload();
       
-      const response = await requestWithFallback(async (endpoints) => {
-        const endpoint = isTestRun ? endpoints.migo.check : endpoints.migo.post;
-        return await axios.post(endpoint, payload, {
-          headers: getAuthHeader(),
-          timeout: 30000 // 30 second timeout
-        });
+      const endpoint = isTestRun
+        ? `${PRIMARY_BACKEND_URL}/api/migo/check`
+        : `${PRIMARY_BACKEND_URL}/api/migo/post`;
+      const response = await axios.post(endpoint, payload, {
+        headers: getAuthHeader(),
+        timeout: typeof window !== 'undefined' && window.Capacitor ? 60000 : 30000 // 60s for mobile, 30s for web
       });
 
       if (response.data.success) {
@@ -154,7 +155,18 @@ function MigoPage({ user, onLogout }) {
         throw new Error(response.data.error || 'Operation failed');
       }
     } catch (error) {
-      setError(error.response?.data?.error || error.message);
+      const errorMsg = error.response?.data?.error || error.message;
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        setError('Request timeout. Backend may be slow or unreachable.');
+      } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        setError(`Network error - Unable to connect to server.
+        Please ensure:
+        1. Backend is running
+        2. Phone and computer are on the same Wi-Fi network
+        3. Windows Firewall allows backend port`);
+      } else {
+        setError(errorMsg);
+      }
       if (error.response?.status === 401) {
         navigate('/login');
       }
