@@ -16,12 +16,12 @@ app.use(cors({
     'http://192.168.60.97:3000',      // Your mobile app
     'http://192.168.60.96:3000',      // Old mobile app IP
     'http://192.168.60.96:3001',      // Old mobile app port
-    'http://192.168.60.95:5000',      // Old mobile app config
+    'http://192.168.60.105:5000', 
+    'http://192.168.60.16:5000',     // Old mobile app config
     'capacitor://localhost',          // Capacitor local
     'http://localhost',               // Any localhost
     '*'                             // Allow all origins for development
   ],
-  origin: '*',  // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   credentials: true

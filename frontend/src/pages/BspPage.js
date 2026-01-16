@@ -74,7 +74,7 @@ function BspPage({ user, onLogout }) {
       let json;
       try {
         // Use local network URL
-        const url = `http://172.16.26.217:5000/api/BatchInfo/${input}`;
+        const url = `http://192.168.60.105:5000/api/BatchInfo/${input}`;
         const res = await fetch(url, {
           signal: controller.signal
         });

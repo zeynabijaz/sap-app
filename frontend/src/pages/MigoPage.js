@@ -138,8 +138,8 @@ function MigoPage({ user, onLogout }) {
     try {
       const payload = preparePayload();
       const endpoint = isTestRun 
-        ? `http://172.16.26.217:5000/api/migo/check` 
-        : `http://172.16.26.217:5000/api/migo/post`;
+        ? `http://192.168.60.105:5000/api/migo/check` 
+        : `http://192.168.60.105:5000/api/migo/post`;
       const response = await axios.post(endpoint, payload, {
         headers: getAuthHeader(),
         timeout: typeof window !== 'undefined' && window.Capacitor ? 60000 : 30000 // 60s for mobile, 30s for web
