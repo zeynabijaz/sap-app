@@ -11,6 +11,10 @@ const SAP_PASS = process.env.SAP_PASS;
 const SAP_BASE_URL = process.env.SAP_BASE_URL; // e.g., https://10.200.11.37:44300
 const BSP_SERVICE_PATH = process.env.BSP_SERVICE_PATH; // e.g., /sap/opu/odata/sap/ZUM_BSP_BATCH_INFORMATION_SRV
 
+// SAP API Management gateway configuration
+const SAP_API_MGMT_URL = process.env.SAP_API_MGMT_URL; // e.g., https://devspace.test.apimanagement.eu10.hana.ondemand.com
+const SAP_API_MGMT_KEY = process.env.SAP_API_MGMT_KEY; // API key for SAP API Management
+
 // Ignore SSL certificate errors (for dev/self-signed SSL)
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -73,6 +77,73 @@ router.get("/BatchInfo/:batchNumber", async (req, res) => {
     
     if (err.code === 'ECONNABORTED') {
       return res.status(408).json({ error: "Request timeout - SAP server is not responding", details: err.message });
+    }
+    
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+
+// GET batch info from SAP API Management gateway
+router.get("/BatchInfoGateway/:batchNumber", async (req, res) => {
+  const { batchNumber } = req.params;
+  if (!batchNumber) return res.status(400).json({ error: "Batch number is required" });
+
+  if (!SAP_API_MGMT_URL) {
+    return res.status(500).json({ error: "SAP API Management URL not configured" });
+  }
+
+  console.log(`Fetching batch info from gateway for: ${batchNumber}`);
+  console.log(`SAP_API_MGMT_URL: ${SAP_API_MGMT_URL}`);
+
+  try {
+    const url = `${SAP_API_MGMT_URL}/bsp/batch/BatchInfoSet?$filter=Charg eq '${batchNumber}'&$format=json`;
+    console.log(`Full Gateway URL: ${url}`);
+
+    const response = await axios.get(url, {
+      auth: {
+        username: SAP_USER,
+        password: SAP_PASS
+      }, // Basic Auth for SAP API Management
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      validateStatus: () => true, // handle status manually
+      timeout: 30000 // 30 second timeout
+    });
+
+    if (response.status === 401) {
+      return res.status(401).json({ error: "Unauthorized. Check SAP API Management credentials." });
+    }
+
+    if (response.status !== 200) {
+      return res.status(response.status).json({
+        error: "Error fetching batch info from SAP API Management",
+        data: response.data
+      });
+    }
+
+    // Handle OData filter response - check if we have results
+    const batchData = response.data?.d?.results;
+    if (!batchData || batchData.length === 0) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+
+    // Return the first batch from the filtered results
+    res.json(batchData[0]);
+
+  } catch (err) {
+    console.error("SAP API Management batch fetch error:", err.message);
+    console.error("Error details:", {
+      message: err.message,
+      code: err.code,
+      status: err.response?.status,
+      statusText: err.response?.statusText,
+      isTimeout: err.code === 'ECONNABORTED'
+    });
+    
+    if (err.code === 'ECONNABORTED') {
+      return res.status(408).json({ error: "Request timeout - SAP API Management server is not responding", details: err.message });
     }
     
     res.status(500).json({ error: "Internal server error", details: err.message });
