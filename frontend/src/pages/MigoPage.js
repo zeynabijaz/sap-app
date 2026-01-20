@@ -127,25 +127,60 @@ function MigoPage({ user, onLogout }) {
 
     try {
       const payload = preparePayload();
-      const endpoint = isTestRun ? 'https://sap-app-maoe.onrender.com/api/migo/check' : 'https://sap-app-maoe.onrender.com/api/migo/post';
-
-      const response = await axios.post(endpoint, payload, {
-        headers: getAuthHeader()
-      });
-
-      if (response.data.success) {
-        setTransferResult(response.data.data);
-        if (isTestRun) {
+      
+      if (isTestRun) {
+        // Use gateway endpoints for test run
+        const csrfResponse = await axios.get('https://sap-app-maoe.onrender.com/api/migo/gateway/csrf', {
+          headers: getAuthHeader()
+        });
+        
+        if (!csrfResponse.data.success) {
+          throw new Error('Failed to get CSRF token');
+        }
+        
+        const response = await axios.post('https://sap-app-maoe.onrender.com/api/migo/gateway/post', {
+          csrfToken: csrfResponse.data.csrfToken,
+          cookies: csrfResponse.data.cookies,
+          transferData: payload
+        }, {
+          headers: getAuthHeader()
+        });
+        
+        if (response.data.success) {
+          setTransferResult(response.data.data);
           setValidationPassed(true);
           setSuccessMessage('Validation successful!');
           setShowSuccessPopup(true);
         } else {
+          throw new Error(response.data.error || 'Validation failed');
+        }
+      } else {
+        // Use gateway endpoint for actual post
+        const csrfResponse = await axios.get('https://sap-app-maoe.onrender.com/api/migo/gateway/csrf', {
+          headers: getAuthHeader()
+        });
+        
+        if (!csrfResponse.data.success) {
+          throw new Error('Failed to get CSRF token');
+        }
+        
+        const response = await axios.post('https://sap-app-maoe.onrender.com/api/migo/gateway/post', {
+          csrfToken: csrfResponse.data.csrfToken,
+          cookies: csrfResponse.data.cookies,
+          transferData: payload,
+          isTestRun: false
+        }, {
+          headers: getAuthHeader()
+        });
+        
+        if (response.data.success) {
+          setTransferResult(response.data?.data || null);
           setShowSuccessPopup(false);
           setPostSuccessData(response.data?.data || null);
           setShowPostSuccessPopup(true);
+        } else {
+          throw new Error(response.data.error || 'Post failed');
         }
-      } else {
-        throw new Error(response.data.error || 'Operation failed');
       }
     } catch (error) {
       setError(error.response?.data?.error || error.message);
