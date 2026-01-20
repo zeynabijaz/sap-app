@@ -61,4 +61,20 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("Login endpoint: POST /api/auth/Login");
   console.log("MIGO Check endpoint: POST /api/migo/check");
   console.log("MIGO Post endpoint: POST /api/migo/post");
+  console.log(`MIGO Post endpoint: POST http://${getLocalIP()}:${PORT}/api/migo/post`);
+
 });
+
+// Utility function to log your local IP
+
+function getLocalIP() {
+    const os = require('os');
+    const ifaces = os.networkInterfaces();
+    for (const iface of Object.values(ifaces)) {
+        for (const alias of iface) {
+            if (alias.family === 'IPv4' && !alias.internal) {
+                return alias.address;
+            }
+        }
+      }
+    }
