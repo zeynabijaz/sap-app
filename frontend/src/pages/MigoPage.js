@@ -69,7 +69,7 @@ function MigoPage({ user, onLogout }) {
     };
   };
 
-  const preparePayload = () => {
+  const preparePayload = (isTestRun) => {
     const nowIso = new Date().toISOString();
 
     // Use "to" fields if entered, otherwise use "from" fields
@@ -155,7 +155,7 @@ function MigoPage({ user, onLogout }) {
     setSuccessMessage('');
 
     try {
-      const payload = preparePayload();
+      const payload = preparePayload(isTestRun);
       
       if (isTestRun) {
         // Use gateway endpoints for test run
