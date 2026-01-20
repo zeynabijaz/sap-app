@@ -5,16 +5,16 @@ const https = require("https");
 
 const router = express.Router();
 
-// SAP credentials from environment variables
+// SAP API Management gateway configuration (primary)
+const SAP_API_MGMT_URL = process.env.SAP_API_MGMT_URL; // e.g., https://devspace.test.apimanagement.eu10.hana.ondemand.com
+const SAP_API_MGMT_BATCH_URL = process.env.SAP_API_MGMT_BATCH_URL; // e.g., https://devspace.test.apimanagement.eu10.hana.ondemand.com/bsp/batch
+const SAP_API_MGMT_KEY = process.env.SAP_API_MGMT_KEY; // API key for SAP API Management
+
+// Direct SAP server configuration (fallback)
 const SAP_USER = process.env.SAP_USER;
 const SAP_PASS = process.env.SAP_PASS;
 const SAP_BASE_URL = process.env.SAP_BASE_URL; // e.g., https://10.200.11.37:44300
 const BSP_SERVICE_PATH = process.env.BSP_SERVICE_PATH; // e.g., /sap/opu/odata/sap/ZUM_BSP_BATCH_INFORMATION_SRV
-
-// SAP API Management gateway configuration
-const SAP_API_MGMT_URL = process.env.SAP_API_MGMT_URL; // e.g., https://devspace.test.apimanagement.eu10.hana.ondemand.com
-const SAP_API_MGMT_BATCH_URL = process.env.SAP_API_MGMT_BATCH_URL; // e.g., https://devspace.test.apimanagement.eu10.hana.ondemand.com/bsp/batch
-const SAP_API_MGMT_KEY = process.env.SAP_API_MGMT_KEY; // API key for SAP API Management
 
 // Ignore SSL certificate errors (for dev/self-signed SSL)
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });

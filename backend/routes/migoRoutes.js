@@ -1,15 +1,17 @@
 // backend/routes/migoRoutes.js
 const express = require('express');
 const router = express.Router();
-const migoClient = require('../utils/migoClient');
 const axios = require('axios');
 const https = require('https');
 
-// SAP API Management gateway configuration
+// SAP API Management gateway configuration (primary)
 const SAP_API_MGMT_URL = process.env.SAP_API_MGMT_URL;
 const SAP_API_MGMT_MIGO_URL = process.env.SAP_API_MGMT_MIGO_URL;
 const SAP_API_MGMT_MIGO_POST_URL = process.env.SAP_API_MGMT_MIGO_POST_URL;
 const SAP_USER = process.env.SAP_USER;
+
+// Direct SAP server configuration (fallback)
+const migoClient = require('../utils/migoClient');
 
 // Ignore SSL certificate errors (for dev/self-signed SSL)
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
