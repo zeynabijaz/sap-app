@@ -55,10 +55,19 @@ function MigoPage({ user, onLogout }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Auto-uppercase storage location to field
+    if (name === 'storageLocationTo') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.toUpperCase()
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const getAuthHeader = () => {
@@ -150,6 +159,12 @@ function MigoPage({ user, onLogout }) {
   };
 
   const handleTransfer = async (isTestRun) => {
+    // Validate storage location before proceeding
+    if (!formData.storageLocationTo.trim()) {
+      setError('Storage Location To is required. Please enter a value before proceeding.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccessMessage('');
